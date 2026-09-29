@@ -59,10 +59,10 @@
       #bq-menu{position:absolute;bottom:48px;${rtl ? 'left' : 'right'}:0;background:#fff;color:#111;border-radius:10px;box-shadow:0 8px 24px #0003;overflow:hidden;min-width:140px}
       #bq-menu div{padding:9px 14px;cursor:pointer} #bq-menu div:hover{background:#f3f4f6}
       ${rtl ? `
-      html.bq-rtl body, html.bq-rtl input, html.bq-rtl textarea, html.bq-rtl button{font-family:'Cairo','Tajawal',system-ui,sans-serif}
-      html.bq-rtl ${CFG.SIDEBAR}{right:0!important;left:auto!important}
-      html.bq-rtl input, html.bq-rtl textarea{text-align:right}
-      html.bq-rtl input[type=email], html.bq-rtl input[type=tel], html.bq-rtl input[type=url]{direction:ltr;text-align:right}
+      html[dir="rtl"] body, html[dir="rtl"] input, html[dir="rtl"] textarea, html[dir="rtl"] button{font-family:'Cairo','Tajawal',system-ui,sans-serif}
+      html[dir="rtl"] ${CFG.SIDEBAR}{right:0!important;left:auto!important}
+      html[dir="rtl"] input, html[dir="rtl"] textarea{text-align:right}
+      html[dir="rtl"] input[type=email], html[dir="rtl"] input[type=tel], html[dir="rtl"] input[type=url]{direction:ltr;text-align:right}
       ` : ''}`;
     document.head.appendChild(s);
   }
@@ -311,12 +311,21 @@
     if (pending.size) setTimeout(flushPending, 500);
   }
 
+  function applyDir() {
+    if (lang === 'en') return;
+    const h = document.documentElement, rtl = CFG.RTL.includes(lang);
+    if (h.lang !== lang) h.lang = lang;
+    if (h.dir !== (rtl ? 'rtl' : 'ltr')) h.dir = rtl ? 'rtl' : 'ltr';
+    if (rtl && !h.classList.contains('bq-rtl')) h.classList.add('bq-rtl');
+  }
+
   let apiTimer;
   function schedule() {
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
       queued = false;
+      applyDir();
       translateTree(document.body);
       clearTimeout(apiTimer); apiTimer = setTimeout(flushPending, 700);
     });
@@ -336,6 +345,7 @@
       try { dict = JSON.parse(localStorage.getItem(cacheKey(lang)) || '{}'); } catch (e) {}
       schedule();
       new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true });
+      new MutationObserver(applyDir).observe(document.documentElement, { attributes: true, attributeFilter: ['dir', 'lang', 'class'] });
     };
     document.body ? start() : document.addEventListener('DOMContentLoaded', start);
   })();
