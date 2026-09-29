@@ -1,945 +1,153 @@
-(async function () {
+/* GHL Multi-language + RTL  |  ضعه على GitHub واستدعِه عبر jsDelivr في Agency Custom JS */
+(function () {
+  'use strict';
+  if (window.__bqI18n) return;
+  window.__bqI18n = true;
 
-    /* =========================================================
-       BeatApp Arabic UI
-       RTL + Translation + Location Authorization
-       ========================================================= */
+  const CFG = {
+    API: 'https://script.google.com/macros/s/AKfycbyIxwE4AXDF55t9osyLaIqgwxoAtHH9xqLqt-is5C3fnINH6iiociHo0I1eW-hlyHe_oA/exec',
+    KEY: 'bq_lang',
+    LANGS: { en: 'English', ar: 'العربية', fr: 'Français', es: 'Español', de: 'Deutsch', pt: 'Português', tr: 'Türkçe', it: 'Italiano' },
+    RTL: ['ar', 'he', 'fa', 'ur'],
+    // عدّل هذا السيلكتور بعد فحص الصفحة (Inspect) لو السايدبار عندك id مختلف
+    SIDEBAR: '#sidebar-v2, .hl_nav-header, #sidebar',
+  };
 
-    const API_URL =
-        'https://script.google.com/macros/s/AKfycbxaJQdvfg5OoqwwSsg_DOaBBgOkND-sJIifine-OcmP51SHIIonsPNMRGk79aqn1TG/exec';
+  const loc = (location.pathname.match(/\/location\/([A-Za-z0-9]+)/) || [])[1];
+  if (!loc) return;
 
+  const $lang = () => localStorage.getItem(CFG.KEY) || 'en';
+  const norm = (s) => s.replace(/\s+/g, ' ').trim();
+  const cacheKey = (l) => 'bq_cache_' + l;
 
-    /* =========================================================
-       1. GET LOCATION ID
-       ========================================================= */
-
-    function getLocationId() {
-
-        const match = window.location.pathname.match(
-            /\/location\/([a-zA-Z0-9_-]+)/
-        );
-
-        return match ? match[1] : null;
-    }
-
-
-    const locationId = getLocationId();
-
-    if (!locationId) {
-        console.log('[BeatApp Arabic] Location ID not found.');
-        return;
-    }
-
-
-    /* =========================================================
-       2. LICENSE / AUTHORIZATION CHECK
-       ========================================================= */
-
+  /* ---------- 1) التحقق من الصلاحية (مع كاش ساعة) ---------- */
+  async function authorized() {
     try {
+      const c = JSON.parse(sessionStorage.getItem('bq_auth_' + loc) || 'null');
+      if (c && Date.now() - c.t < 3600e3) return c.ok;
+    } catch (e) {}
+    try {
+      const r = await fetch(`${CFG.API}?action=check&loc=${loc}`);
+      const j = await r.json();
+      sessionStorage.setItem('bq_auth_' + loc, JSON.stringify({ ok: !!j.active, t: Date.now() }));
+      return !!j.active;
+    } catch (e) { return false; }
+  }
 
-        const response = await fetch(API_URL, {
-            cache: 'no-store'
-        });
+  /* ---------- 2) زر تبديل اللغة (قائمة لغات) ---------- */
+  function mountSwitcher(rtl) {
+    if (document.getElementById('bq-switch')) return;
+    const box = document.createElement('div');
+    box.id = 'bq-switch';
+    box.innerHTML = `<button id="bq-btn">🌐 ${CFG.LANGS[$lang()]}</button><div id="bq-menu" hidden>${
+      Object.entries(CFG.LANGS).map(([k, v]) => `<div data-l="${k}">${v}</div>`).join('')}</div>`;
+    document.body.appendChild(box);
+    box.querySelector('#bq-btn').onclick = () => { const m = box.querySelector('#bq-menu'); m.hidden = !m.hidden; };
+    box.querySelector('#bq-menu').onclick = (e) => {
+      const l = e.target.dataset.l; if (!l) return;
+      localStorage.setItem(CFG.KEY, l); location.reload();
+    };
+  }
 
+  function injectCSS(rtl) {
+    if (document.getElementById('bq-css')) return;
+    const s = document.createElement('style'); s.id = 'bq-css';
+    s.textContent = `
+      #bq-switch{position:fixed;bottom:16px;${rtl ? 'left' : 'right'}:16px;z-index:999999;font:14px system-ui,sans-serif}
+      #bq-btn{background:#111827;color:#fff;border:0;border-radius:999px;padding:10px 16px;cursor:pointer;box-shadow:0 4px 14px #0004}
+      #bq-menu{position:absolute;bottom:48px;${rtl ? 'left' : 'right'}:0;background:#fff;color:#111;border-radius:10px;box-shadow:0 8px 24px #0003;overflow:hidden;min-width:140px}
+      #bq-menu div{padding:9px 14px;cursor:pointer} #bq-menu div:hover{background:#f3f4f6}
+      ${rtl ? `
+      html.bq-rtl body, html.bq-rtl input, html.bq-rtl textarea, html.bq-rtl button{font-family:'Cairo','Tajawal',system-ui,sans-serif}
+      html.bq-rtl ${CFG.SIDEBAR}{right:0!important;left:auto!important}
+      html.bq-rtl input, html.bq-rtl textarea{text-align:right}
+      html.bq-rtl input[type=email], html.bq-rtl input[type=tel], html.bq-rtl input[type=url]{direction:ltr;text-align:right}
+      ` : ''}`;
+    document.head.appendChild(s);
+  }
 
-        if (!response.ok) {
-            throw new Error(
-                `License API returned ${response.status}`
-            );
-        }
+  /* ---------- 3) الترجمة ---------- */
+  let dict = {}, pending = new Set(), sending = false, queued = false, lang = 'en';
+  const nodeRec = new WeakMap(); // node -> {src,out}
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'CODE', 'PRE', 'TEXTAREA', 'SVG']);
+  const hasWords = (s) => /[A-Za-z]{2,}/.test(s) && !/^[\w.+-]+@[\w-]+\.[\w.]+$/.test(s) && !/^https?:/.test(s);
 
+  function t(src) {
+    const k = norm(src);
+    if (dict[k]) return dict[k];
+    if (hasWords(k) && k.length < 300) pending.add(k);
+    return null;
+  }
 
-        const data = await response.json();
-
-
-        if (
-            !data.allowedLocations ||
-            !Array.isArray(data.allowedLocations)
-        ) {
-
-            console.log(
-                '[BeatApp Arabic] Invalid authorization response.'
-            );
-
-            return;
-        }
-
-
-        const isAllowed =
-            data.allowedLocations.includes(locationId);
-
-
-        if (!isAllowed) {
-
-            console.log(
-                '[BeatApp Arabic] Arabic UI is not enabled for this location.'
-            );
-
-            return;
-        }
-
-
-        console.log(
-            '[BeatApp Arabic] Arabic UI enabled for:',
-            locationId
-        );
-
-
-        /* =====================================================
-           3. START ARABIC MODE
-           ===================================================== */
-
-        initRTL();
-
-        initTranslation();
-
-
-    } catch (error) {
-
-        console.error(
-            '[BeatApp Arabic] License validation failed:',
-            error
-        );
-
+  function translateTree(root) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        const p = n.parentElement;
+        if (!p || SKIP.has(p.tagName.toUpperCase()) || p.closest('#bq-switch,[contenteditable="true"]')) return NodeFilter.FILTER_REJECT;
+        return n.nodeValue.trim().length > 1 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    let n;
+    while ((n = w.nextNode())) {
+      const rec = nodeRec.get(n);
+      if (rec && n.nodeValue === rec.out) continue; // ترجمناه قبل كده
+      const out = t(n.nodeValue);
+      if (out) {
+        const lead = n.nodeValue.match(/^\s*/)[0], trail = n.nodeValue.match(/\s*$/)[0];
+        const val = lead + out + trail;
+        nodeRec.set(n, { src: n.nodeValue, out: val });
+        n.nodeValue = val;
+      }
     }
-
-
-    /* =========================================================
-       4. RTL / LAYOUT
-       ========================================================= */
-
-    function initRTL() {
-
-        /*
-         * Prevent duplicate style injection
-         */
-
-        if (document.getElementById('beatapp-arabic-style')) {
-            return;
-        }
-
-
-        const style = document.createElement('style');
-
-        style.id = 'beatapp-arabic-style';
-
-
-        style.textContent = `
-
-        /* =====================================================
-           GLOBAL RTL
-           ===================================================== */
-
-        html.beatapp-arabic,
-        html.beatapp-arabic body {
-
-            direction: rtl !important;
-
-        }
-
-
-        /* =====================================================
-           APP ROOT
-           ===================================================== */
-
-        html.beatapp-arabic #app {
-
-            direction: rtl !important;
-
-            width: 100% !important;
-
-            max-width: 100% !important;
-
-        }
-
-
-        /* =====================================================
-           SIDEBAR
-           ===================================================== */
-
-        html.beatapp-arabic .sidebar-v2-location,
-        html.beatapp-arabic #sidebar-v2,
-        html.beatapp-arabic .hl_sidebar {
-
-            left: auto !important;
-
-            right: 0 !important;
-
-            direction: rtl !important;
-
-        }
-
-
-        /* =====================================================
-           SIDEBAR NAV
-           ===================================================== */
-
-        html.beatapp-arabic
-        .sidebar-v2-location nav,
-
-        html.beatapp-arabic
-        #sidebar-v2 nav,
-
-        html.beatapp-arabic
-        .hl_sidebar nav {
-
-            direction: rtl !important;
-
-        }
-
-
-        /* =====================================================
-           SIDEBAR LINKS
-           ===================================================== */
-
-        html.beatapp-arabic
-        .sidebar-v2-location nav a,
-
-        html.beatapp-arabic
-        #sidebar-v2 nav a,
-
-        html.beatapp-arabic
-        .hl_sidebar nav a {
-
-            direction: rtl !important;
-
-            text-align: right !important;
-
-            justify-content: flex-start !important;
-
-        }
-
-
-        /* =====================================================
-           REMOVE THE OLD 240px OFFSET
-           ===================================================== */
-
-        html.beatapp-arabic
-        .hl_wrapper,
-
-        html.beatapp-arabic
-        .hl_wrapper--inner {
-
-            margin-right: 0 !important;
-
-            margin-left: 0 !important;
-
-            width: 100% !important;
-
-            max-width: 100% !important;
-
-        }
-
-
-        /* =====================================================
-           MAIN CONTENT
-           ===================================================== */
-
-        html.beatapp-arabic
-        .hl_main,
-
-        html.beatapp-arabic
-        .hl_main-content {
-
-            direction: rtl !important;
-
-        }
-
-
-        /* =====================================================
-           HEADER
-           ===================================================== */
-
-        html.beatapp-arabic
-        .hl_header {
-
-            left: 0 !important;
-
-            right: 0 !important;
-
-            direction: rtl !important;
-
-        }
-
-
-        /* =====================================================
-           INPUTS
-           ===================================================== */
-
-        html.beatapp-arabic input,
-
-        html.beatapp-arabic textarea,
-
-        html.beatapp-arabic select {
-
-            direction: rtl !important;
-
-            text-align: right !important;
-
-        }
-
-
-        /* =====================================================
-           DROPDOWNS
-           ===================================================== */
-
-        html.beatapp-arabic
-        [role="dialog"],
-
-        html.beatapp-arabic
-        [role="menu"],
-
-        html.beatapp-arabic
-        [role="listbox"] {
-
-            direction: rtl !important;
-
-            text-align: right !important;
-
-        }
-
-
-        /* =====================================================
-           BUTTONS
-           ===================================================== */
-
-        html.beatapp-arabic button {
-
-            direction: rtl;
-
-        }
-
-
-        /* =====================================================
-           COMMON TEXT ALIGNMENT
-           ===================================================== */
-
-        html.beatapp-arabic
-        .text-left {
-
-            text-align: right !important;
-
-        }
-
-
-        html.beatapp-arabic
-        .text-right {
-
-            text-align: left !important;
-
-        }
-
-
-        /* =====================================================
-           TOOLTIPS
-           ===================================================== */
-
-        html.beatapp-arabic
-        [role="tooltip"] {
-
-            direction: rtl !important;
-
-            text-align: right !important;
-
-        }
-
-        `;
-
-
-        document.head.appendChild(style);
-
-
-        /*
-         * Add RTL class
-         */
-
-        document.documentElement.classList.add(
-            'beatapp-arabic'
-        );
-
-
-        /*
-         * Set HTML language
-         */
-
-        document.documentElement.lang = 'ar';
-
-
-        document.documentElement.dir = 'rtl';
-
-
-        console.log(
-            '[BeatApp Arabic] RTL enabled.'
-        );
-
-    }
-
-
-    /* =========================================================
-       5. TRANSLATION SYSTEM
-       ========================================================= */
-
-    function initTranslation() {
-
-
-        /* =====================================================
-           TRANSLATION DICTIONARY
-           ===================================================== */
-
-        const dictionary = {
-
-            /* -------------------------------------------------
-               SIDEBAR
-               ------------------------------------------------- */
-
-            "Launch Pad":
-                "لوحة البداية",
-
-            "Launchpad":
-                "لوحة البداية",
-
-            "Dashboard":
-                "لوحة التحكم",
-
-            "Conversations":
-                "المحادثات",
-
-            "Calendar":
-                "التقويم",
-
-            "Calendars":
-                "التقويم",
-
-            "Contacts":
-                "جهات الاتصال",
-
-            "Opportunities":
-                "الفرص",
-
-            "Payments":
-                "المدفوعات",
-
-            "AI Agents":
-                "وكلاء الذكاء الاصطناعي",
-
-            "Marketing":
-                "التسويق",
-
-            "Automations":
-                "الأتمتة",
-
-            "Sites":
-                "المواقع",
-
-            "Settings":
-                "الإعدادات",
-
-            "Reporting":
-                "التقارير",
-
-            "Reputation":
-                "السمعة",
-
-            "App Marketplace":
-                "سوق التطبيقات",
-
-            "Mobile App":
-                "تطبيق الهاتف",
-
-
-            /* -------------------------------------------------
-               SEARCH / COMMON
-               ------------------------------------------------- */
-
-            "Search":
-                "بحث",
-
-            "New":
-                "جديد",
-
-            "Save":
-                "حفظ",
-
-            "Cancel":
-                "إلغاء",
-
-            "Close":
-                "إغلاق",
-
-            "Edit":
-                "تعديل",
-
-            "Delete":
-                "حذف",
-
-            "Create":
-                "إنشاء",
-
-            "Add":
-                "إضافة",
-
-            "Back":
-                "رجوع",
-
-            "Next":
-                "التالي",
-
-            "Previous":
-                "السابق",
-
-            "Apply":
-                "تطبيق",
-
-            "Clear":
-                "مسح",
-
-            "Select":
-                "اختيار",
-
-            "Select All":
-                "تحديد الكل",
-
-            "Loading...":
-                "جاري التحميل...",
-
-
-            /* -------------------------------------------------
-               DASHBOARD
-               ------------------------------------------------- */
-
-            "Opportunity status":
-                "حالة الفرص",
-
-            "Opportunity value":
-                "قيمة الفرص",
-
-            "Conversion rate":
-                "معدل التحويل",
-
-            "All pipelines":
-                "جميع مسارات المبيعات",
-
-            "Funnel":
-                "مسار المبيعات",
-
-            "Stages distribution":
-                "توزيع المراحل",
-
-            "Total revenue":
-                "إجمالي الإيرادات",
-
-            "Won revenue":
-                "الإيرادات المكتسبة",
-
-            "Last 30 days":
-                "آخر 30 يوم",
-
-            "Last 7 days":
-                "آخر 7 أيام",
-
-            "Last 90 days":
-                "آخر 90 يوم",
-
-            "Today":
-                "اليوم",
-
-            "Yesterday":
-                "أمس",
-
-            "This week":
-                "هذا الأسبوع",
-
-            "This month":
-                "هذا الشهر",
-
-
-            /* -------------------------------------------------
-               OPPORTUNITIES
-               ------------------------------------------------- */
-
-            "Open":
-                "مفتوحة",
-
-            "Won":
-                "مكتسبة",
-
-            "Lost":
-                "خاسرة",
-
-            "Open -":
-                "مفتوحة -",
-
-
-            /* -------------------------------------------------
-               CONVERSATIONS
-               ------------------------------------------------- */
-
-            "All Caught Up!":
-                "لا توجد محادثات جديدة",
-
-            "You don't have any unread Team inbox conversations right now.":
-                "ليس لديك أي محادثات غير مقروءة في صندوق الفريق حاليًا.",
-
-            "View All Team inbox Conversations":
-                "عرض جميع محادثات صندوق الفريق",
-
-            "No conversation selected":
-                "لم يتم اختيار محادثة",
-
-            "Select a conversation from the list to view contact details.":
-                "اختر محادثة من القائمة لعرض تفاصيل جهة الاتصال.",
-
-
-            /* -------------------------------------------------
-               CONVERSATION ACTIONS
-               ------------------------------------------------- */
-
-            "Manual Actions":
-                "الإجراءات اليدوية",
-
-            "Trigger Links":
-                "روابط التشغيل",
-
-            "Snippets":
-                "المقاطع الجاهزة",
-
-            "Analytics":
-                "التحليلات",
-
-
-            /* -------------------------------------------------
-               CONTACTS
-               ------------------------------------------------- */
-
-            "Contact":
-                "جهة اتصال",
-
-            "Contacts":
-                "جهات الاتصال",
-
-            "First Name":
-                "الاسم الأول",
-
-            "Last Name":
-                "اسم العائلة",
-
-            "Phone":
-                "الهاتف",
-
-            "Email":
-                "البريد الإلكتروني",
-
-            "Address":
-                "العنوان",
-
-            "Company":
-                "الشركة",
-
-            "Tags":
-                "العلامات",
-
-            "Notes":
-                "الملاحظات",
-
-
-            /* -------------------------------------------------
-               CALENDAR
-               ------------------------------------------------- */
-
-            "Appointment":
-                "موعد",
-
-            "Appointments":
-                "المواعيد",
-
-            "Book Appointment":
-                "حجز موعد",
-
-            "Schedule":
-                "الجدول",
-
-            "Available":
-                "متاح",
-
-            "Unavailable":
-                "غير متاح",
-
-
-            /* -------------------------------------------------
-               AUTOMATIONS
-               ------------------------------------------------- */
-
-            "Workflow":
-                "سير العمل",
-
-            "Workflows":
-                "سير العمل",
-
-            "Trigger":
-                "المشغّل",
-
-            "Action":
-                "الإجراء",
-
-            "Actions":
-                "الإجراءات",
-
-            "Conditions":
-                "الشروط",
-
-            "Published":
-                "منشور",
-
-            "Draft":
-                "مسودة",
-
-
-            /* -------------------------------------------------
-               NOTIFICATIONS
-               ------------------------------------------------- */
-
-            "Notifications":
-                "الإشعارات",
-
-            "Notification":
-                "إشعار",
-
-            "View":
-                "عرض",
-
-            "View All":
-                "عرض الكل"
-
-        };
-
-
-        /* =====================================================
-           NORMALIZE TEXT
-           ===================================================== */
-
-        function normalize(text) {
-
-            return text
-                .replace(/\s+/g, ' ')
-                .trim();
-
-        }
-
-
-        /* =====================================================
-           TRANSLATE TEXT NODE
-           ===================================================== */
-
-        function translateTextNode(node) {
-
-            const original =
-                normalize(node.nodeValue);
-
-
-            if (!original) {
-                return;
-            }
-
-
-            const translated =
-                dictionary[original];
-
-
-            if (!translated) {
-                return;
-            }
-
-
-            if (original === translated) {
-                return;
-            }
-
-
-            node.nodeValue =
-                node.nodeValue.replace(
-                    original,
-                    translated
-                );
-
-        }
-
-
-        /* =====================================================
-           WALK DOM
-           ===================================================== */
-
-        function walk(root) {
-
-            const walker =
-                document.createTreeWalker(
-
-                    root,
-
-                    NodeFilter.SHOW_TEXT,
-
-                    {
-
-                        acceptNode(node) {
-
-                            const parent =
-                                node.parentElement;
-
-
-                            if (!parent) {
-
-                                return NodeFilter.FILTER_REJECT;
-
-                            }
-
-
-                            /*
-                             * Don't translate scripts/styles
-                             */
-
-                            if (
-
-                                parent.tagName === 'SCRIPT' ||
-
-                                parent.tagName === 'STYLE' ||
-
-                                parent.tagName === 'NOSCRIPT'
-
-                            ) {
-
-                                return NodeFilter.FILTER_REJECT;
-
-                            }
-
-
-                            return NodeFilter.FILTER_ACCEPT;
-
-                        }
-
-                    }
-
-                );
-
-
-            const nodes = [];
-
-
-            while (walker.nextNode()) {
-
-                nodes.push(
-                    walker.currentNode
-                );
-
-            }
-
-
-            nodes.forEach(
-                translateTextNode
-            );
-
-        }
-
-
-        /* =====================================================
-           MAIN TRANSLATION
-           ===================================================== */
-
-        function translatePage() {
-
-            if (
-                !document.body
-            ) {
-                return;
-            }
-
-
-            walk(document.body);
-
-        }
-
-
-        /* =====================================================
-           PERFORMANCE CONTROL
-           ===================================================== */
-
-        let translationQueued = false;
-
-
-        function scheduleTranslation() {
-
-            if (translationQueued) {
-                return;
-            }
-
-
-            translationQueued = true;
-
-
-            requestAnimationFrame(() => {
-
-                translationQueued = false;
-
-                translatePage();
-
-            });
-
-        }
-
-
-        /* =====================================================
-           INITIAL TRANSLATION
-           ===================================================== */
-
-        translatePage();
-
-
-        /*
-         * Small delayed scans because HighLevel
-         * loads some components asynchronously.
-         */
-
-        setTimeout(
-            translatePage,
-            500
-        );
-
-
-        setTimeout(
-            translatePage,
-            1500
-        );
-
-
-        setTimeout(
-            translatePage,
-            3000
-        );
-
-
-        /* =====================================================
-           MUTATION OBSERVER
-           ===================================================== */
-
-        const observer =
-            new MutationObserver(() => {
-
-                scheduleTranslation();
-
-            });
-
-
-        observer.observe(
-            document.body,
-            {
-                childList: true,
-                subtree: true
-            }
-        );
-
-
-        console.log(
-            '[BeatApp Arabic] Translation system initialized.'
-        );
-
-    }
-
+    root.querySelectorAll && root.querySelectorAll('[placeholder],[title],[aria-label]').forEach((el) => {
+      ['placeholder', 'title', 'aria-label'].forEach((a) => {
+        const v = el.getAttribute(a); if (!v || el.dataset['bq' + a]) return;
+        const out = t(v); if (out) { el.setAttribute(a, out); el.dataset['bq' + a] = '1'; }
+      });
+    });
+  }
+
+  async function flushPending() {
+    if (sending || !pending.size || !CFG.API) return;
+    sending = true;
+    const batch = [...pending].slice(0, 40); batch.forEach((s) => pending.delete(s));
+    try {
+      const r = await fetch(CFG.API, { method: 'POST', body: JSON.stringify({ loc, lang, strings: batch }) }); // text/plain => بدون preflight
+      const map = await r.json();
+      Object.assign(dict, map.translations || {});
+      localStorage.setItem(cacheKey(lang), JSON.stringify(dict));
+      schedule();
+    } catch (e) { /* نحاول لاحقًا */ }
+    sending = false;
+    if (pending.size) setTimeout(flushPending, 500);
+  }
+
+  let apiTimer;
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      translateTree(document.body);
+      clearTimeout(apiTimer); apiTimer = setTimeout(flushPending, 700);
+    });
+  }
+
+  /* ---------- 4) التشغيل ---------- */
+  (async function init() {
+    lang = $lang();
+    if (!(await authorized())) return;
+    const rtl = CFG.RTL.includes(lang);
+    const start = () => {
+      injectCSS(rtl); mountSwitcher(rtl);
+      if (lang === 'en') return;
+      document.documentElement.lang = lang;
+      document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+      document.documentElement.classList.toggle('bq-rtl', rtl);
+      try { dict = JSON.parse(localStorage.getItem(cacheKey(lang)) || '{}'); } catch (e) {}
+      schedule();
+      new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true });
+    };
+    document.body ? start() : document.addEventListener('DOMContentLoaded', start);
+  })();
 })();
