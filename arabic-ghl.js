@@ -5,7 +5,7 @@
   window.__bqI18n = true;
 
   const CFG = {
-    API: 'https://script.google.com/macros/s/AKfycbyIxwE4AXDF55t9osyLaIqgwxoAtHH9xqLqt-is5C3fnINH6iiociHo0I1eW-hlyHe_oA/exec',
+    API: 'https://script.google.com/macros/s/AKfycbzA-YzZsCnGcZbsVAJXjrIUVn0EyxYECabCS30AIFh9zZfp7TR5MzIZdXnfvSVRlHsTtg/exec',
     KEY: 'bq_lang',
     LANGS: { en: 'English', ar: 'العربية', fr: 'Français', es: 'Español', de: 'Deutsch', pt: 'Português', tr: 'Türkçe', it: 'Italiano' },
     RTL: ['ar', 'he', 'fa', 'ur'],
