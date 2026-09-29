@@ -1,52 +1,68 @@
-
 (async function() {
-  // 1. رابط الـ API الخاص بيك اللي بيقرأ من جوجل شيت
   const API_URL = 'https://script.google.com/macros/s/AKfycbxaJQdvfg5OoqwwSsg_DOaBBgOkND-sJIifine-OcmP51SHIIonsPNMRGk79aqnq1TG/exec';
 
-  // 2. استخراج رقم الحساب (Location ID) من الرابط
   function getLocationId() {
     const match = window.location.pathname.match(/\/location\/([a-zA-Z0-9_-]+)/);
     return match ? match[1] : null;
   }
 
   const locationId = getLocationId();
-  if (!locationId) return; // لو إنت في الداشبورد الرئيسية للوكالة، مفيش حاجة هتتغير
+  if (!locationId) return;
 
   try {
-    // 3. التحقق من الصلاحية
     const response = await fetch(API_URL);
     const data = await response.json();
 
     if (data.allowedLocations && data.allowedLocations.includes(locationId)) {
-      console.log("تم تفعيل الواجهة العربية لهذا الحساب!");
       initRTL();
       initTranslation();
-    } else {
-      console.log("هذا الحساب غير مفعل له ميزة الواجهة العربية.");
     }
   } catch (error) {
-    console.error("Error validating translation license:", error);
+    console.error("Error validating license:", error);
   }
 
-  // 4. قلب الاتجاه (RTL Injection)
   function initRTL() {
     const style = document.createElement('style');
-    // تعديلات مبدئية لقلب الواجهة، ممكن تحتاج تظبيط أكتر بناءً على الكلاسات وقت التجربة
+    // تعديلات CSS أقوى لضبط المسافات والقائمة الجانبية
     style.innerHTML = `
-      body, #app, .hl_wrapper { direction: rtl !important; text-align: right !important; }
-      .hl_sidebar { right: 0 !important; left: auto !important; border-left: 1px solid #e5e7eb; border-right: none !important; }
-      .hl_wrapper { margin-right: 240px !important; margin-left: 0 !important; }
-      .hl_header { margin-right: 240px !important; margin-left: 0 !important; }
+      body, #app { direction: rtl !important; }
+      
+      /* ضبط القائمة الجانبية لتكون على اليمين بالكامل */
+      .sidebar-v2-location, #sidebar-v2, .hl_sidebar { 
+        right: 0 !important; 
+        left: auto !important; 
+        border-left: 1px solid #e5e7eb !important; 
+        border-right: none !important; 
+      }
+      
+      /* ضبط محاذاة أيقونات القائمة الجانبية */
+      .sidebar-v2-location nav a, .hl_sidebar nav a {
+        justify-content: flex-start !important;
+        padding-right: 15px !important;
+      }
+      
+      /* ضبط المحتوى الأساسي عشان يقفل المسافة البيضا */
+      .hl_wrapper, .hl_wrapper--inner, #app > div > div.flex.h-screen.overflow-hidden > div.relative.flex.flex-col.flex-1.overflow-y-auto.overflow-x-hidden { 
+        margin-right: 240px !important; 
+        margin-left: 0 !important; 
+        width: calc(100% - 240px) !important;
+      }
+      
+      /* الهيدر العلوي */
+      .hl_header {
+        right: 240px !important;
+        left: 0 !important;
+      }
     `;
     document.head.appendChild(style);
   }
 
-  // 5. الترجمة الفورية باستخدام MutationObserver
   function initTranslation() {
     const dictionary = {
       "Dashboard": "لوحة التحكم",
       "Conversations": "المحادثات",
       "Calendars": "التقويم",
+      "Calendar": "التقويم",
       "Contacts": "جهات الاتصال",
       "Opportunities": "الفرص",
       "Payments": "المدفوعات",
@@ -54,29 +70,42 @@
       "Automations": "الأتمتة",
       "Sites": "المواقع",
       "Settings": "الإعدادات",
+      "Launch Pad": "لوحة الإطلاق",
       "Launchpad": "لوحة الإطلاق",
-      "Reporting": "التقارير"
+      "Reporting": "التقارير",
+      "Reputation": "السمعة",
+      "App Marketplace": "سوق التطبيقات",
+      "Mobile App": "تطبيق الموبايل"
     };
 
-    function translateNode(node) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        let text = node.nodeValue.trim();
-        if (dictionary[text]) {
-          node.nodeValue = node.nodeValue.replace(text, dictionary[text]);
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE && node.nodeName !== "SCRIPT" && node.nodeName !== "STYLE") {
-        node.childNodes.forEach(child => translateNode(child));
-      }
+    // دالة ترجمة أكثر شمولاً بتبحث داخل الـ innerHTML للعناصر
+    function translateSidebar() {
+        const sidebarLinks = document.querySelectorAll('a, span, p, div.text-sm, div.text-base');
+        sidebarLinks.forEach(link => {
+            if(link.childNodes.length > 0) {
+                link.childNodes.forEach(node => {
+                    if(node.nodeType === Node.TEXT_NODE) {
+                        let text = node.nodeValue.trim();
+                        if (dictionary[text]) {
+                            node.nodeValue = node.nodeValue.replace(text, dictionary[text]);
+                        }
+                    }
+                })
+            }
+        });
     }
 
-    // تطبيق الترجمة على المحتوى اللي حمل بالفعل
-    translateNode(document.body);
+    // تشغيل الترجمة فوراً وكل ثانية لمدة 5 ثواني عشان نضمن إن القائمة حملت بالكامل
+    translateSidebar();
+    let counter = 0;
+    const interval = setInterval(() => {
+        translateSidebar();
+        counter++;
+        if(counter > 5) clearInterval(interval);
+    }, 1000);
 
-    // مراقبة أي عناصر جديدة تظهر (React DOM Updates)
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        mutation.addedNodes.forEach(node => translateNode(node));
-      });
+    const observer = new MutationObserver(() => {
+        translateSidebar();
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
