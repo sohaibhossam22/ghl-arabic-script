@@ -5,7 +5,8 @@
   window.__bqI18n = true;
 
   const CFG = {
-    API: 'https://script.google.com/macros/s/AKfycbzA-YzZsCnGcZbsVAJXjrIUVn0EyxYECabCS30AIFh9zZfp7TR5MzIZdXnfvSVRlHsTtg/exec',
+    API: 'https://script.google.com/macros/s/AKfycbyIxwE4AXDF55t9osyLaIqgwxoAtHH9xqLqt-is5C3fnINH6iiociHo0I1eW-hlyHe_oA/exec',
+    USE_AI: false, // خليها false = قاموس ثابت فقط بدون Gemini. true = يترجم الناقص بالـ AI
     KEY: 'bq_lang',
     LANGS: { en: 'English', ar: 'العربية', fr: 'Français', es: 'Español', de: 'Deutsch', pt: 'Português', tr: 'Türkçe', it: 'Italiano' },
     RTL: ['ar', 'he', 'fa', 'ur'],
@@ -66,6 +67,189 @@
     document.head.appendChild(s);
   }
 
+  /* ---------- قاموس عربي مدمج (زوّد عليه براحتك) ---------- */
+  const AR = {
+ "Launch Pad": "لوحة الإطلاق",
+ "Dashboard": "لوحة التحكم",
+ "Conversations": "المحادثات",
+ "Calendars": "التقويمات",
+ "Calendar": "التقويم",
+ "Contacts": "جهات الاتصال",
+ "Opportunities": "الفرص",
+ "Payments": "المدفوعات",
+ "AI Agents": "وكلاء الذكاء الاصطناعي",
+ "Marketing": "التسويق",
+ "Automation": "الأتمتة",
+ "Automations": "الأتمتة",
+ "Sites": "المواقع",
+ "Memberships": "العضويات",
+ "Reputation": "السمعة",
+ "Reporting": "التقارير",
+ "Settings": "الإعدادات",
+ "App Marketplace": "متجر التطبيقات",
+ "Mobile App": "تطبيق الجوال",
+ "Search": "بحث",
+ "What's new": "الجديد",
+ "Companies": "الشركات",
+ "Tasks": "المهام",
+ "Custom Fields": "الحقول المخصصة",
+ "Bulk Actions": "إجراءات جماعية",
+ "Smart Lists": "القوائم الذكية",
+ "Restore": "استعادة",
+ "Manage Smart Lists": "إدارة القوائم الذكية",
+ "Import": "استيراد",
+ "Export": "تصدير",
+ "Add Contact": "إضافة جهة اتصال",
+ "Search Contacts": "بحث في جهات الاتصال",
+ "Manage fields": "إدارة الحقول",
+ "Phone": "الهاتف",
+ "Email": "البريد الإلكتروني",
+ "Business name": "اسم النشاط التجاري",
+ "Created": "تاريخ الإنشاء",
+ "Last activity": "آخر نشاط",
+ "Tags": "الوسوم",
+ "Name": "الاسم",
+ "Prev": "السابق",
+ "Next": "التالي",
+ "Previous": "السابق",
+ "Save": "حفظ",
+ "Cancel": "إلغاء",
+ "Delete": "حذف",
+ "Edit": "تعديل",
+ "Add": "إضافة",
+ "Create": "إنشاء",
+ "Update": "تحديث",
+ "Submit": "إرسال",
+ "Close": "إغلاق",
+ "Confirm": "تأكيد",
+ "Apply": "تطبيق",
+ "Filter": "تصفية",
+ "Filters": "عوامل التصفية",
+ "More filters": "المزيد من عوامل التصفية",
+ "Sort": "ترتيب",
+ "View": "عرض",
+ "Back": "رجوع",
+ "Done": "تم",
+ "Send": "إرسال",
+ "Reply": "رد",
+ "Loading...": "جارٍ التحميل...",
+ "All": "الكل",
+ "None": "لا شيء",
+ "Yes": "نعم",
+ "No": "لا",
+ "Status": "الحالة",
+ "Active": "نشط",
+ "Inactive": "غير نشط",
+ "Draft": "مسودة",
+ "Published": "منشور",
+ "Open": "مفتوح",
+ "Won": "مكسوبة",
+ "Lost": "مخسورة",
+ "Abandoned": "متروكة",
+ "Pending": "قيد الانتظار",
+ "Completed": "مكتمل",
+ "Overdue": "متأخر",
+ "Today": "اليوم",
+ "Yesterday": "أمس",
+ "Tomorrow": "غدًا",
+ "This week": "هذا الأسبوع",
+ "This month": "هذا الشهر",
+ "Last 7 days": "آخر 7 أيام",
+ "Last 30 days": "آخر 30 يومًا",
+ "Unread": "غير مقروء",
+ "Recents": "الأحدث",
+ "Starred": "المميزة بنجمة",
+ "Inbox": "صندوق الوارد",
+ "Team Inbox": "صندوق الفريق",
+ "Manual Actions": "إجراءات يدوية",
+ "Templates": "القوالب",
+ "Snippets": "المقتطفات",
+ "Trigger Links": "روابط التشغيل",
+ "Pipelines": "مسارات المبيعات",
+ "Pipeline": "مسار المبيعات",
+ "Opportunity status": "حالة الفرص",
+ "Opportunity value": "قيمة الفرص",
+ "Conversion rate": "معدل التحويل",
+ "Funnel": "القمع التسويقي",
+ "Stages distribution": "توزيع المراحل",
+ "Lead source report": "تقرير مصادر العملاء المحتملين",
+ "Source": "المصدر",
+ "Total leads": "إجمالي العملاء المحتملين",
+ "Total value": "القيمة الإجمالية",
+ "Google Analytics count": "إحصاءات Google Analytics",
+ "No data found": "لا توجد بيانات",
+ "No results found": "لا توجد نتائج",
+ "Go to manual actions": "الانتقال إلى الإجراءات اليدوية",
+ "Invoices": "الفواتير",
+ "Invoices & Estimates": "الفواتير وعروض الأسعار",
+ "Estimates": "عروض الأسعار",
+ "Subscriptions": "الاشتراكات",
+ "Transactions": "المعاملات",
+ "Products": "المنتجات",
+ "Coupons": "القسائم",
+ "Orders": "الطلبات",
+ "Documents & Contracts": "المستندات والعقود",
+ "Proposals": "العروض",
+ "Forms": "النماذج",
+ "Surveys": "الاستبيانات",
+ "Funnels": "مسارات التحويل",
+ "Websites": "المواقع الإلكترونية",
+ "Workflows": "سير العمل",
+ "Workflow": "سير العمل",
+ "Campaigns": "الحملات",
+ "Emails": "رسائل البريد",
+ "Social Planner": "مخطط التواصل الاجتماعي",
+ "Reviews": "التقييمات",
+ "Reports": "التقارير",
+ "Team": "الفريق",
+ "My Staff": "فريق العمل",
+ "Business Profile": "ملف النشاط التجاري",
+ "Integrations": "التكاملات",
+ "Phone Numbers": "أرقام الهاتف",
+ "Custom Values": "القيم المخصصة",
+ "Labs": "المختبر",
+ "Audit Logs": "سجل التدقيق",
+ "Send an SMS": "إرسال رسالة نصية",
+ "Call": "اتصال",
+ "Note": "ملاحظة",
+ "Notes": "ملاحظات",
+ "First name": "الاسم الأول",
+ "Last name": "اسم العائلة",
+ "Full name": "الاسم الكامل",
+ "Address": "العنوان",
+ "City": "المدينة",
+ "Country": "الدولة",
+ "Company": "الشركة",
+ "Date": "التاريخ",
+ "Time": "الوقت",
+ "Type": "النوع",
+ "Assigned to": "مُسند إلى",
+ "Owner": "المالك",
+ "Description": "الوصف",
+ "Title": "العنوان",
+ "Amount": "المبلغ",
+ "Select": "اختيار",
+ "Choose": "اختر",
+ "Upload": "رفع",
+ "Download": "تنزيل",
+ "Copy": "نسخ",
+ "Share": "مشاركة",
+ "Preview": "معاينة",
+ "Publish": "نشر",
+ "Enable": "تفعيل",
+ "Disable": "تعطيل",
+ "Log out": "تسجيل الخروج",
+ "Logout": "تسجيل الخروج",
+ "Profile": "الملف الشخصي",
+ "Help": "مساعدة",
+ "Support": "الدعم",
+ "Notifications": "الإشعارات",
+ "Resolve": "حل",
+ "Rows per page": "عدد الصفوف في الصفحة",
+ "per page": "في الصفحة"
+};
+  const DL = {}; Object.keys(AR).forEach((k) => { DL[k.toLowerCase()] = AR[k]; });
+
   /* ---------- 3) الترجمة ---------- */
   let dict = {}, pending = new Set(), sending = false, queued = false, lang = 'en';
   const nodeRec = new WeakMap(); // node -> {src,out}
@@ -75,7 +259,8 @@
   function t(src) {
     const k = norm(src);
     if (dict[k]) return dict[k];
-    if (hasWords(k) && k.length < 300) pending.add(k);
+    if (lang === 'ar' && DL[k.toLowerCase()]) return DL[k.toLowerCase()];
+    if (CFG.USE_AI && hasWords(k) && k.length < 300) pending.add(k);
     return null;
   }
 
@@ -99,16 +284,20 @@
         n.nodeValue = val;
       }
     }
+    const done = (window.__bqAttr = window.__bqAttr || new WeakMap());
     root.querySelectorAll && root.querySelectorAll('[placeholder],[title],[aria-label]').forEach((el) => {
       ['placeholder', 'title', 'aria-label'].forEach((a) => {
-        const v = el.getAttribute(a); if (!v || el.dataset['bq' + a]) return;
-        const out = t(v); if (out) { el.setAttribute(a, out); el.dataset['bq' + a] = '1'; }
+        const v = el.getAttribute(a); if (!v) return;
+        const rec = done.get(el) || {};
+        if (rec[a] === v) return;
+        const out = t(v);
+        if (out) { el.setAttribute(a, out); rec[a] = out; done.set(el, rec); }
       });
     });
   }
 
   async function flushPending() {
-    if (sending || !pending.size || !CFG.API) return;
+    if (!CFG.USE_AI || sending || !pending.size || !CFG.API) return;
     sending = true;
     const batch = [...pending].slice(0, 40); batch.forEach((s) => pending.delete(s));
     try {
